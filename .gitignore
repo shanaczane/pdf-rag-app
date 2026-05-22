@@ -3,3 +3,4 @@ backend/__pycache__/
 backend/.env 
 frontend/.env.local 
 frontend/node_modules/ 
+CLAUDE.md
