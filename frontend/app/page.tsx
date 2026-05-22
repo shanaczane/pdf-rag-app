@@ -1,65 +1,318 @@
-import Image from "next/image";
+'use client'
+// required for useState, useRef, and event handlers
+
+import { useState, useRef } from 'react'
+
+const API = 'http://localhost:8000'
 
 export default function Home() {
+
+  // ── State ─────────────────────────────────────────────────────────────
+  const [file,       setFile]       = useState<File | null>(null)
+  const [documentId, setDocumentId] = useState<string | null>(null)
+  const [question,   setQuestion]   = useState('')
+  const [answer,     setAnswer]     = useState('')
+  const [uploading,  setUploading]  = useState(false)
+  const [asking,     setAsking]     = useState(false)
+  const [error,      setError]      = useState('')
+  const [dragOver,   setDragOver]   = useState(false)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Upload ────────────────────────────────────────────────────────────
+  async function handleUpload() {
+    if (!file) return
+    setUploading(true)
+    setError('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+
+      const res = await fetch(`${API}/upload-pdf`, {
+        method: 'POST',
+        body: form,
+        // omit Content-Type — browser sets it with the correct multipart boundary
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const data = await res.json()
+      setDocumentId(data.document_id)
+    } catch {
+      setError('Upload failed. Is the backend running at localhost:8000?')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  // ── Ask ───────────────────────────────────────────────────────────────
+  async function handleAsk() {
+    if (!question.trim() || !documentId) return
+    setAsking(true)
+    setError('')
+    setAnswer('')
+    try {
+      const res = await fetch(`${API}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, document_id: documentId }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const data = await res.json()
+      setAnswer(data.answer)
+    } catch {
+      setError('Failed to get an answer. Is the backend running at localhost:8000?')
+    } finally {
+      setAsking(false)
+    }
+  }
+
+  // ── Drag & drop ───────────────────────────────────────────────────────
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()  // required to allow drop
+    setDragOver(true)
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    const dropped = e.dataTransfer.files[0]
+    if (dropped?.type === 'application/pdf') {
+      setFile(dropped)
+      setDocumentId(null)
+      setAnswer('')
+    }
+  }
+
+  // ── Button style ──────────────────────────────────────────────────────
+  function btn(disabled: boolean): React.CSSProperties {
+    return {
+      padding: '0.75rem 1.25rem',
+      background: 'transparent',
+      color: disabled ? 'var(--blue)' : 'var(--cyan)',
+      border: `2px solid ${disabled ? 'var(--blue)' : 'var(--cyan)'}`,
+      borderRadius: '0px',
+      fontFamily: 'var(--font-pixel)',
+      fontSize: '0.55rem',
+      letterSpacing: '0.05em',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      transition: 'all 0.1s ease',
+      whiteSpace: 'nowrap' as const,
+      opacity: disabled ? 0.5 : 1,
+      boxShadow: disabled ? 'none' : '3px 3px 0 #00e5ff',
+    }
+  }
+
+  const sectionLabel: React.CSSProperties = {
+    fontFamily: 'var(--font-terminal)',
+    color: 'var(--sky)',
+    fontSize: '1rem',
+    letterSpacing: '0.08em',
+    marginBottom: '1rem',
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <>
+      {/* scanlines — defined in globals.css */}
+      <div id="scanlines" />
+
+      <main style={{ minHeight: '100vh', padding: '2rem 1rem' }}>
+
+        <header style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <h1 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
+            PDF RAG APP
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p style={{
+            fontFamily: 'var(--font-terminal)',
+            fontSize: '1.3rem',
+            color: 'var(--sky)',
+          }}>
+            upload a pdf · ask anything · get answers powered by ai
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        </header>
+
+        <div style={{
+          maxWidth: '720px',
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5rem',
+        }}>
+
+          {/* 01 — Upload */}
+          <section className="widget">
+            <p style={sectionLabel}>01 / UPLOAD YOUR PDF</p>
+
+            {/* drop zone — click also opens file picker */}
+            <div
+              className={`drop-zone${dragOver ? ' drag-over' : ''}`}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const picked = e.target.files?.[0]
+                  if (picked) {
+                    setFile(picked)
+                    setDocumentId(null)
+                    setAnswer('')
+                  }
+                }}
+              />
+
+              {file ? (
+                <p style={{
+                  color: 'var(--mint)',
+                  fontFamily: 'var(--font-terminal)',
+                  fontSize: '1.1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.6rem',
+                }}>
+                  <span className="status-dot" />
+                  {file.name}
+                </p>
+              ) : (
+                <p style={{
+                  color: 'var(--sky)',
+                  fontFamily: 'var(--font-terminal)',
+                  fontSize: '1.1rem',
+                }}>
+                  drag & drop a PDF here — or click to browse
+                </p>
+              )}
+            </div>
+
+            {file && !documentId && (
+              <button
+                onClick={handleUpload}
+                disabled={uploading}
+                style={{ ...btn(uploading), marginTop: '1rem', minWidth: '12rem', textAlign: 'center' }}
+                onMouseEnter={(e) => {
+                  if (uploading) return
+                  e.currentTarget.style.transform = 'translate(-3px, -3px)'
+                  e.currentTarget.style.boxShadow = '5px 5px 0 #00e5ff'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translate(0, 0)'
+                  e.currentTarget.style.boxShadow = '3px 3px 0 #00e5ff'
+                }}
+              >
+                {uploading ? 'UPLOADING...' : 'UPLOAD & PROCESS →'}
+              </button>
+            )}
+
+            {documentId && (
+              <p style={{
+                marginTop: '1rem',
+                color: 'var(--mint)',
+                fontFamily: 'var(--font-terminal)',
+                fontSize: '0.95rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+              }}>
+                <span className="status-dot" />
+                ready. document id: {documentId}
+              </p>
+            )}
+          </section>
+
+          {/* 02 — Ask (dims until PDF is uploaded) */}
+          <section
+            className="widget"
+            style={{
+              opacity: documentId ? 1 : 0.35,
+              pointerEvents: documentId ? 'auto' : 'none',
+              transition: 'opacity 0.3s ease',
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <p style={sectionLabel}>02 / ASK A QUESTION</p>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <input
+                suppressHydrationWarning
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
+                placeholder="what is this document about . . .?"
+                style={{
+                  flex: 1,
+                  padding: '0.65rem 1rem',
+                  background: 'var(--mid)',
+                  border: '1px solid var(--blue)',
+                  borderRadius: '4px',
+                  color: 'var(--white)',
+                  fontFamily: 'var(--font-terminal)',
+                  fontSize: '1rem',
+                  outline: 'none',
+                  transition: 'border-color 0.2s ease',
+                }}
+                onFocus={(e)  => (e.target.style.borderColor = 'var(--cyan)')}
+                onBlur={(e)   => (e.target.style.borderColor = 'var(--blue)')}
+              />
+              <button
+                onClick={handleAsk}
+                disabled={asking || !question.trim()}
+                style={{ ...btn(asking || !question.trim()), minWidth: '7rem', textAlign: 'center' }}
+                onMouseEnter={(e) => {
+                  if (asking || !question.trim()) return
+                  e.currentTarget.style.transform = 'translate(-3px, -3px)'
+                  e.currentTarget.style.boxShadow = '5px 5px 0 #00e5ff'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translate(0, 0)'
+                  e.currentTarget.style.boxShadow = '3px 3px 0 #00e5ff'
+                }}
+              >
+                {asking ? 'THINKING...' : 'ASK →'}
+              </button>
+            </div>
+          </section>
+
+          {/* 03 — Answer */}
+          {answer && (
+            <section className="widget animate-glow-pulse">
+              <p style={sectionLabel}>03 / ANSWER</p>
+              <p style={{
+                color: 'var(--white)',
+                fontFamily: 'var(--font-body)',
+                lineHeight: '1.9',
+                fontSize: '1rem',
+              }}>
+                {answer}
+              </p>
+            </section>
+          )}
+
+          {error && (
+            <div style={{
+              padding: '1rem',
+              border: '1px solid var(--pink)',
+              borderRadius: '4px',
+              background: 'rgba(255, 110, 180, 0.05)',
+            }}>
+              <p style={{
+                color: 'var(--pink)',
+                fontFamily: 'var(--font-terminal)',
+                fontSize: '1rem',
+              }}>
+                {error}
+              </p>
+            </div>
+          )}
+
         </div>
       </main>
-    </div>
-  );
+    </>
+  )
 }
