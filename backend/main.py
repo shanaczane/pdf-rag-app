@@ -75,12 +75,11 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     document_id = doc_response.data[0]["id"]
 
-    # Step 5: Save each chunk to Supabase
-    for chunk in chunks:
-        supabase.schema("project1").table("document_chunks").insert({
-            "document_id": document_id,
-            "content":  chunk.page_content,
-        }).execute()
+    # Step 5: Save all chunks in one bulk insert instead of one call per chunk
+    supabase.schema("project1").table("document_chunks").insert([
+        {"document_id": document_id, "content": chunk.page_content}
+        for chunk in chunks
+    ]).execute()
 
     # Cleanup temp file
     os.unlink(tmp_path)
@@ -95,11 +94,11 @@ async def upload_pdf(file: UploadFile = File(...)):
 @app.post("/ask")
 async def ask(request: AskRequest):
 
-    # Step 1: Fetch chunks from Supabase for this document
-    response = supabase.schema("project1").table("document_chunks").select("content").eq("document_id", request.document_id).execute()
+    # Step 1: Fetch only 5 chunks from Supabase — limit at the database level
+    response = supabase.schema("project1").table("document_chunks").select("content").eq("document_id", request.document_id).limit(5).execute()
 
     # Step 2: Combine all chunks into one block of context
-    chunks = response.data[:5]
+    chunks = response.data
     context= "\n\n".join([chunk["content"] for chunk in chunks])
 
     # Step 3: Send question and context to Groq
