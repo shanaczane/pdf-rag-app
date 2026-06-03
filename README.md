@@ -7,7 +7,7 @@ semantic search to find the most relevant content before
 generating an accurate answer.
 
 ## Demo
-![PDF RAG App Screenshot](screenshots/image.png)
+![PDF RAG App Screenshot](demo/demo.gif)
 
 ## How it works
 1. User uploads a PDF file
